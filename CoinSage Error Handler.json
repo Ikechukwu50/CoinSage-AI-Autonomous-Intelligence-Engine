@@ -1,0 +1,66 @@
+{
+  "name": "CoinSage Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "19e68bd6-e51d-408d-baa1-7e9a039ebd31",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "from": "+14155238886",
+        "to": "+2348134111205",
+        "toWhatsapp": true,
+        "message": "=​⚠️ COINSAGE SYSTEM ALERT ⚠️ ​Status: The agent has stopped. Workflow: {{ $json.workflow.name }} Error Node: {{ $json.execution.lastNodeExecuted }} Error Message: {{ $json.execution.error.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        160,
+        0
+      ],
+      "id": "be77e79e-3bdf-483d-99be-a52d525440d0",
+      "name": "Send an SMS/MMS/WhatsApp message",
+      "credentials": {
+        "twilioApi": {
+          "id": "NQSVgMCzwBRW1mTg",
+          "name": "Twilio account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send an SMS/MMS/WhatsApp message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3b0c0abf-5ed0-4156-92a5-2a75c4a1ca34",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ab6753cbb8b8061d26964eab9066cec82fe408aa3def6e998499d4b706eeb2bd"
+  },
+  "id": "XePdns4AFiV0xmeeDZbWK",
+  "tags": []
+}

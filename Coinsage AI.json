@@ -1,0 +1,243 @@
+{
+  "name": "Coinsage AI",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        -160
+      ],
+      "id": "a1ac872a-52ba-4bac-8fc3-4dcaacdf1cac",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "FD5V6ZHf1dSBSgUe",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        -384
+      ],
+      "id": "23e3beb3-11ea-4fec-8f20-d62f2faf589c",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/search/trending",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        384,
+        -384
+      ],
+      "id": "dbf2842e-d319-4a33-a278-87339dfd9cb2",
+      "name": "Get Market Data",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global'); \nconst now = new Date().getTime();\nif (!staticData.sentHistory) staticData.sentHistory = {};\n\nconst fng = $node[\"FearAndGreed\"].json.data[0];\nconst marketVibe = `${fng.value}/100 (${fng.value_classification})`;\n\nconst rssItems = $node[\"RSS Read\"]?.json || [];\nconst allHeadlines = (Array.isArray(rssItems) ? rssItems : [rssItems])\n  .slice(0, 15)\n  .map(n => n.title)\n  .join('\\n- ');\n\nconst trendingCoins = $node[\"Get Market Data\"].json.coins;\nconst results = [];\n\nfor (const coin of trendingCoins) {\n  const symbol = coin.item.symbol.toUpperCase();\n  const change = coin.item.data.price_change_percentage_24h.usd;\n  \n  // FIXED: Handle price regardless of format (Number or String)\n  let rawPrice = coin.item.data.price;\n  let currentPrice = typeof rawPrice === 'string' \n    ? parseFloat(rawPrice.replace(/[$,]/g, '')) \n    : rawPrice;\n  \n  // Calculate Targets\n  const tpPrice = (currentPrice * 1.15).toFixed(6); // +15% Target\n  const slPrice = (currentPrice * 0.95).toFixed(6); // -5% Stop Loss\n\n  if (change >= 10 && (now - (staticData.sentHistory[coin.item.id] || 0) > 21600000)) {\n    staticData.sentHistory[coin.item.id] = now;\n\n    results.push({\n      name: coin.item.name,\n      symbol: symbol,\n      price: `$${currentPrice.toFixed(6)}`,\n      tp: `$${tpPrice}`,\n      sl: `$${slPrice}`,\n      change: change.toFixed(2),\n      isWhale: coin.item.market_cap_rank <= 100\n    });\n  }\n}\n\nif (results.length === 0) return [];\n\n// GLOBAL SUMMARY LOGIC\nconst zone = fng.value < 20 ? \"💎 ACCUMULATION (BUY)\" : (fng.value > 75 ? \"⚠️ OVERHEATED (SELL)\" : \"⚖️ STABLE\");\n\nreturn [{ \n  json: { \n    market_sentiment: marketVibe, \n    trade_zone: zone,\n    coins: results, \n    news_pool: allHeadlines \n  } \n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        -384
+      ],
+      "id": "dc87bc91-3ea6-4952-8163-149c00319c92",
+      "name": "Format Data"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Act as CoinSage AI. Use the data to create a high-stakes trading report.\n​Data Input:\n​Market Tone: {{ $json.market_sentiment }}\n​Trade Zone: {{ $json.trade_zone }}\n​Coins: {{ JSON.stringify($json.coins) }}\n​News: {{ $json.news_pool }}\n​WhatsApp Report Structure:\n📈 GLOBAL SNAPSHOT\nVibe: {{ $json.market_sentiment }}\nAction: {{ $json.trade_zone }}\n​For each coin:\n{{ \"{\" }}if isWhale{{ \"}\" }}🐳{{ \"{\" }}else{{ \"}\" }}🔥{{ \"{\" }}endif{{ \"}\" }} [Name] ([Symbol]) | +[Change]%\n💰 Entry: [price]\n🎯 Take Profit: [tp]\n📉 Stop Loss: [sl]\n📰 Analysis: [Match news or explain the pump vibe concisely.]\n💡 Sage Tip: [Unique trading advice.]\n​Rule: Use single asterisks for bold. Ensure the Take Profit and Stop Loss numbers are exact.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1280,
+        -384
+      ],
+      "id": "e0092809-a83b-4547-be8d-a116aabd56c3",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "from": "+14155238886",
+        "to": "+2348134111205",
+        "toWhatsapp": true,
+        "message": "={{ $json.text.replace(/\\*\\*/g, '*') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        1632,
+        -384
+      ],
+      "id": "aec2b349-58ef-44a9-9583-e404284a09c2",
+      "name": "Send an SMS/MMS/WhatsApp message",
+      "credentials": {
+        "twilioApi": {
+          "id": "NQSVgMCzwBRW1mTg",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.alternative.me/fng/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        832,
+        -384
+      ],
+      "id": "494c0fe8-65ce-4d9a-9f49-b86597944878",
+      "name": "FearAndGreed",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "url": "=https://news.google.com/rss/search?q=crypto+(breakout+OR+pump+OR+whale+OR+listing+OR+partnership)&hl=en-US",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        608,
+        -384
+      ],
+      "id": "516dcabf-7877-465d-80f1-64cd6a3141af",
+      "name": "RSS Read",
+      "alwaysOutputData": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Market Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Market Data": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Send an SMS/MMS/WhatsApp message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FearAndGreed": {
+      "main": [
+        [
+          {
+            "node": "Format Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "FearAndGreed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "XePdns4AFiV0xmeeDZbWK",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "074f729c-3f28-422e-a795-3bd87fd913a0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ab6753cbb8b8061d26964eab9066cec82fe408aa3def6e998499d4b706eeb2bd"
+  },
+  "id": "Gd-zHJxF7oLxfHq5idhAz",
+  "tags": []
+}
