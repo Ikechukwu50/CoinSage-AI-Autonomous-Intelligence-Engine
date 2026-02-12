@@ -1,4 +1,4 @@
-# -CoinSage-AI-Autonomous-Intelligence-Engine
+# CoinSage-AI-Autonomous-Intelligence-Engine
 
 Quick Deployment Guide
 
